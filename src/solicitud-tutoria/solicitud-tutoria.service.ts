@@ -3,6 +3,9 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Inject,
+  forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -11,14 +14,19 @@ import { CreateSolicitudTutoriaDto } from './dto/create-solicitud-tutoria.dto';
 import { UpdateEstadoSolicitudDto } from './dto/update-estado-solicitud.dto';
 import { UsuarioService } from '../usuario/usuario.service';
 import { MateriaService } from '../materia/materia.service';
+import { TutoriaService } from '../tutoria/tutoria.service';
 
 @Injectable()
 export class SolicitudTutoriaService {
+  private readonly logger = new Logger(SolicitudTutoriaService.name);
+
   constructor(
     @InjectRepository(SolicitudTutoria)
     private solicitudRepository: Repository<SolicitudTutoria>,
     private usuarioService: UsuarioService,
     private materiaService: MateriaService,
+    @Inject(forwardRef(() => TutoriaService))
+    private tutoriaService: TutoriaService,
   ) {}
 
   async create(
@@ -53,7 +61,22 @@ export class SolicitudTutoriaService {
       estado: 'pendiente',
     });
 
-    return this.solicitudRepository.save(solicitud);
+    const solicitudGuardada = await this.solicitudRepository.save(solicitud);
+
+    // Intentar asignar tutor automáticamente
+    try {
+      await this.tutoriaService.asignarTutorAutomatico(solicitudGuardada.id);
+      this.logger.log(`Tutor asignado automáticamente para la solicitud ${solicitudGuardada.id}`);
+    } catch (error) {
+      // Si no se puede asignar tutor, la solicitud queda pendiente
+      this.logger.warn(
+        `No se pudo asignar tutor automáticamente para la solicitud ${solicitudGuardada.id}: ${error.message}`,
+      );
+      // La solicitud permanece en estado 'pendiente' para que un admin la revise manualmente
+    }
+
+    // Retornar la solicitud actualizada con sus relaciones
+    return this.findOne(solicitudGuardada.id);
   }
 
   async findAll(filters?: {
