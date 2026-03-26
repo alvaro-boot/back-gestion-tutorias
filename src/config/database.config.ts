@@ -10,10 +10,13 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
     const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
     const dbHost = this.configService.get<string>('DB_HOST', 'dpg-d6d4e65m5p6s73f5dm0g-a.oregon-postgres.render.com');
     
-    // Configuración SSL para bases de datos en la nube (como Render)
-    const ssl = dbHost.includes('render.com') || isProduction
-      ? { rejectUnauthorized: false }
-      : false;
+    // SSL para proveedores en la nube (Render, Railway, etc.)
+    const ssl =
+      dbHost.includes('render.com') ||
+      dbHost.includes('rlwy.net') ||
+      isProduction
+        ? { rejectUnauthorized: false }
+        : false;
 
     return {
       type: 'postgres',
